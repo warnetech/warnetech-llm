@@ -1,0 +1,12 @@
+{
+  // Account is not a secret. Secrets go in `wrangler secret put` or GitHub secrets only.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "warnetech-llm",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "account_id": "996726cd6bfeaa54c3cb7083ae93a012",
+  "assets": { "binding": "ASSETS", "directory": "./public" },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "warnetech-llm.warnetwork.cloud", "custom_domain": true }],
+  "vars": { "APP_ORIGIN": "https://warnetech-llm.warnetwork.cloud" }
+}

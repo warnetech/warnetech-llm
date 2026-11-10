@@ -223,3 +223,6 @@ __marimo__/
 .clawness/*
 !.clawness/memory.md
 !.clawness/rules/
+
+# Node dependencies
+node_modules/
