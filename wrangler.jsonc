@@ -8,5 +8,8 @@
   "assets": { "binding": "ASSETS", "directory": "./public" },
   "observability": { "enabled": true },
   "routes": [{ "pattern": "warnetech-llm.warnetwork.cloud", "custom_domain": true }],
+  "ratelimits": [
+    { "name": "CHAT_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }
+  ],
   "vars": { "APP_ORIGIN": "https://warnetech-llm.warnetwork.cloud" }
 }

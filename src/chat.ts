@@ -1,7 +1,12 @@
+export interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface ChatEnv {
   ORIGIN_URL?: string;
   ORIGIN_ACCESS_CLIENT_ID?: string;
   ORIGIN_ACCESS_CLIENT_SECRET?: string;
+  CHAT_LIMIT?: RateLimiter;
 }
 
 export interface ChatMessage {
@@ -11,23 +16,28 @@ export interface ChatMessage {
 
 const ROLES = new Set(['user', 'assistant', 'system']);
 const MAX_MESSAGES = 50;
+/** Total characters across the conversation; bounds the work one request can ask the phone to do. */
+const MAX_TOTAL_CHARS = 8000;
 /** First token budget for the phone; slow on-device generation needs more than a web default. */
 export const ORIGIN_TIMEOUT_MS = 60_000;
 
 export type ValidationResult =
   | { ok: true; messages: ChatMessage[] }
-  | { ok: false; error: 'messages_required' | 'invalid_message' | 'too_many_messages' };
+  | { ok: false; error: 'messages_required' | 'invalid_message' | 'too_many_messages' | 'too_long' };
 
 export function validateChatBody(body: unknown): ValidationResult {
   const messages = (body as { messages?: unknown } | null)?.messages;
   if (!Array.isArray(messages)) return { ok: false, error: 'messages_required' };
   if (messages.length > MAX_MESSAGES) return { ok: false, error: 'too_many_messages' };
   const clean: ChatMessage[] = [];
+  let total = 0;
   for (const m of messages) {
     const role = (m as { role?: unknown })?.role;
     const content = (m as { content?: unknown })?.content;
     if (typeof role !== 'string' || !ROLES.has(role)) return { ok: false, error: 'invalid_message' };
     if (typeof content !== 'string' || content.trim() === '') return { ok: false, error: 'invalid_message' };
+    total += content.length;
+    if (total > MAX_TOTAL_CHARS) return { ok: false, error: 'too_long' };
     clean.push({ role: role as ChatMessage['role'], content });
   }
   return { ok: true, messages: clean };
@@ -46,9 +56,14 @@ export async function proxyChat(
   env: ChatEnv,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
-  if (!env.ORIGIN_URL || !env.ORIGIN_ACCESS_CLIENT_ID || !env.ORIGIN_ACCESS_CLIENT_SECRET) {
+  if (!env.ORIGIN_URL || !env.ORIGIN_ACCESS_CLIENT_ID || !env.ORIGIN_ACCESS_CLIENT_SECRET || !env.CHAT_LIMIT) {
     return json({ error: 'not_configured' }, 503);
   }
+  // Limit before reading the body so a flood of junk requests costs no origin work.
+  const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  const { success } = await env.CHAT_LIMIT.limit({ key: ip });
+  if (!success) return json({ error: 'rate_limited' }, 429);
+
   let parsed: unknown;
   try {
     parsed = await request.json();
