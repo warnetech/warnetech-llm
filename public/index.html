@@ -1,3 +1,126 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>warnetech-llm</title></head>
-<body><h1>warnetech-llm</h1><p>Placeholder. Chat UI comes in Phase 2.</p></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>warnetech-llm</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --user: #e8f0fe; --bot: #f4f4f4; --err: #b00020; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; --user: #1e2a3d; --bot: #1c1c1c; --err: #ff6b6b; } }
+  :root[data-theme="light"] { --bg: #fff; --fg: #111; --muted: #666; --user: #e8f0fe; --bot: #f4f4f4; --err: #b00020; }
+  :root[data-theme="dark"] { --bg: #111; --fg: #eee; --muted: #999; --user: #1e2a3d; --bot: #1c1c1c; --err: #ff6b6b; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+  h1 { font-size: 1.1rem; margin: 0 0 8px; }
+  #status { color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+  .msg { padding: 10px 12px; border-radius: 10px; white-space: pre-wrap; word-wrap: break-word; }
+  .user { background: var(--user); align-self: flex-end; max-width: 85%; }
+  .bot { background: var(--bot); align-self: flex-start; max-width: 85%; }
+  .error { color: var(--err); }
+  form { display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--bg); padding-top: 8px; }
+  textarea { flex: 1; font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--muted); background: var(--bg); color: var(--fg); resize: vertical; min-height: 44px; }
+  button { font: inherit; padding: 0 16px; border-radius: 8px; border: 0; background: var(--fg); color: var(--bg); min-height: 44px; }
+  button:disabled { opacity: 0.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>warnetech-llm</h1>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="log" aria-live="polite"></div>
+  <form id="form">
+    <textarea id="input" rows="2" placeholder="Ask a question" aria-label="Message" required></textarea>
+    <button id="send" type="submit">Send</button>
+  </form>
+</main>
+<script type="module">
+  import { parseSse } from './sse.js';
+
+  const log = document.getElementById('log');
+  const status = document.getElementById('status');
+  const form = document.getElementById('form');
+  const input = document.getElementById('input');
+  const send = document.getElementById('send');
+  const messages = [];
+
+  // The reply is written as text nodes, never HTML, so model output cannot inject markup.
+  function add(role, text) {
+    const el = document.createElement('div');
+    el.className = `msg ${role}`;
+    el.textContent = text;
+    log.appendChild(el);
+    el.scrollIntoView({ block: 'end' });
+    return el;
+  }
+
+  const OFFLINE = 'The phone is offline. Turn it on and try again.';
+  const ERRORS = {
+    origin_offline: OFFLINE,
+    not_configured: 'The server is not set up yet.',
+    messages_required: 'Message was empty.',
+    invalid_message: 'Message was not valid.',
+    too_many_messages: 'This chat is too long. Start a new one.',
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    send.disabled = true;
+    status.textContent = 'Thinking…';
+    messages.push({ role: 'user', content: text });
+    add('user', text);
+    const bot = add('bot', '');
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: messages }),
+      });
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => ({}));
+        bot.classList.add('error');
+        bot.textContent = ERRORS[body.error] ?? 'Something went wrong. Try again.';
+        messages.pop();
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let reply = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = parseSse(buffer);
+        buffer = parsed.rest;
+        for (const d of parsed.deltas) {
+          reply += d;
+          bot.textContent = reply;
+        }
+        if (parsed.done) break;
+      }
+      messages.push({ role: 'assistant', content: reply });
+    } catch {
+      bot.classList.add('error');
+      bot.textContent = OFFLINE;
+      messages.pop();
+    } finally {
+      status.textContent = '';
+      send.disabled = false;
+      input.focus();
+    }
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+</script>
+</body>
+</html>
