@@ -302,3 +302,51 @@ These block the phases marked. Defaults are what I will use if you do not choose
 | Qwen3.5-4B | Q4_K_M | TBD | TBD | TBD | TBD | TBD |
 | Qwen3.5-2B | Q4_K_M | TBD | TBD | TBD | TBD | TBD |
 | Gemma 4 E4B | Q4_K_M | TBD | TBD | TBD | TBD | TBD |
+
+---
+
+## 15. v2 scope — grounded Q&A + Linux assistant (supersedes §5 use cases)
+
+**Owner direction (verbatim intent):** answer basic questions with short examples ("Is the sun hot? Yes, very hot"); answer only from an encyclopaedia-based record; cover countries (history to 2005), current capitals/states/counties/territories, mathematics (structures, equations, how they're derived), and computing (systems, programs, software, coding, scripts, data, shell, binaries); execute instructions in a Linux (Debian/Ubuntu) environment; manage data, numbers and files; ask when unclear; learn habits.
+
+### 15.1 Answering model
+- **Retrieval-first.** Every factual answer is built from retrieved knowledge-base spans and cites them. Nothing in the KB → say "not in my record" and offer what is close. No guessing.
+- **Short answers by default**, with one example when useful ("Q: Can fish swim in the sky? A: No. Some fish jump out of water and a few walk on land.").
+- **Clarify first** when a request is ambiguous (one question, not a list).
+- **Minimal stored knowledge:** store compact summaries plus source ID/URL/licence, not full article copies, where licence allows.
+
+### 15.2 Knowledge base (KB)
+| Domain | Source (verify licence before use) | Build |
+|---|---|---|
+| General encyclopaedia | Wikipedia dumps (CC BY-SA; verify current terms) | Extract lead sections + infobox facts |
+| Countries, history to 2005 | Wikipedia country/history articles; dated entries | Timeline records with year fields |
+| Capitals, states, counties, territories (today) | ISO 3166 / national lists via Wikipedia and official sources | Structured table, cross-checked |
+| Mathematics | Wikipedia math articles; standard textbooks where licence allows | Structure + equation + derivation outline |
+| Computing / CS | Wikipedia CS articles; man pages (GPL/free docs); POSIX/Debian docs | Concept cards + command reference |
+
+- **Build on a server or CI, ship a prebuilt index to the phone.** Full Wikipedia is tens of GB; the phone has ~250 GB free but indexing there is slow. Index built once, shipped as a SQLite FTS5 file.
+- **Facts go stale.** The 2005 cutoff for history is intentional; "current" lists carry an as-of date in every record.
+
+### 15.3 Linux assistant (executor)
+- **Two modes:** *explain* (default) and *run*. Run mode requires a plan shown first, then explicit yes.
+- **Confirmation gate** for any write, delete, permission, network or package change. Read-only commands may run after the plan is shown.
+- **Hard blocks:** `rm -rf` on system paths, `dd` to block devices, `mkfs`, disabling firewall or updates, editing `/etc` without approval. Blocked commands are refused with the reason.
+- **Sandbox:** run as an unprivileged user inside the proot Debian; project directories only; no access to `.env`/keys (ENF-SEC-006).
+- **File placement:** a small rules table (`docs`, `src`, `data`, `logs`, `backups`) so "where does this file belong" has a deterministic answer; the assistant proposes, the user confirms.
+- **Number and data handling:** Python or `awk`/`jq` tools for calculation and data files; never mental arithmetic for stated results (verified by running).
+
+### 15.4 Learning habits (modest, transparent)
+- Local SQLite profile: preferred answer length, common directories, frequently run commands.
+- Shown to the user, editable, and can be reset. Nothing is sent off-device.
+- Habits only change suggestions (ordering, defaults), never bypass the confirmation gate.
+
+### 15.5 Updated acceptance (added to Phase 1 and 2)
+- [ ] 50-question eval set (factual, maths, computing, Linux) with expected answers; score recorded before/after each change (LLM-EVAL-001).
+- [ ] Every factual answer shows at least one citation; "not in record" fires for out-of-KB questions in the eval.
+- [ ] Run mode: destructive commands are blocked or require confirmation in tests (verified by running them against a throwaway directory).
+- [ ] Clarifying question asked for ambiguous prompts in the eval.
+
+### 15.6 Decisions still open
+- **D7:** KB size for phase 1 (recommend: Wikipedia lead sections + curated country/capital/maths/CS subset, ~1–2 GB; full dump later).
+- **D8:** Which retention for learned habits (recommend 30 days, user can clear any time).
+- **D9:** Whether run mode is on by default for the public link (recommend: off; users opt in per install).
