@@ -1,0 +1,2 @@
+# Pinned dependency on warnetech-core (MIT). Bump the SHA deliberately after review.
+warnetech-core @ git+https://github.com/warnetech/warnetech-core@fdb7b49ec2fdcdcf7cdedcf2aabd095866138ac7
