@@ -1,6 +1,6 @@
 # Reuse map: warnetech/warnetech-core (MIT, © 2026 Warnetech; clone at fdb7b49)
 
-Status: research only. No code copied yet.
+Status: decided — pinned dependency, no code copied. See `requirements-core.txt`.
 
 | Need (PRD) | Existing in warnetech-core | Plan |
 |---|---|---|
@@ -22,5 +22,4 @@ Depend on warnetech-core as a pinned package (git tag or commit) instead of copy
 - Nemotron / NVIDIA providers: out of scope per PRD §14.
 
 ## Open questions
-- Confirm the pin: commit `fdb7b49` (main, PR #14).
-- Confirm dependency over copy.
+- Re-pin deliberately after review (SHA in `requirements-core.txt`).
