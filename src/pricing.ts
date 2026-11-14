@@ -1,4 +1,4 @@
-/** Agreed rate: $1.00 per million tokens, stored in integer cents to avoid float error at checkout. */
+/** Agreed rate: A$1.00 per million tokens (AUD), stored in integer cents to avoid float error at checkout. */
 export const PRICE_CENTS_PER_MILLION = 100;
 
 /** Price in cents for a token count, rounded up so any purchase costs at least one cent. */
